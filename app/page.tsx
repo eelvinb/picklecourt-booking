@@ -4,15 +4,14 @@ import { useState } from "react";
 
 export default function Home() {
 
-  const [date, setDate] = useState("");
-  const [startTime, setStartTime] = useState("");
-  const [endTime, setEndTime] = useState("");
-  const [showCourts, setShowCourts] = useState(false);
-  const [selectedCourt, setSelectedCourt] = useState<string | null>(null);
-  const [customerName, setCustomerName] = useState("");
-  const [customerContact, setCustomerContact] = useState("");
-
-  const courts = [
+const [date, setDate] = useState("");
+const [selectedTimeSlot, setSelectedTimeSlot] = useState("");
+const [showCourts, setShowCourts] = useState(false);
+const [selectedCourt, setSelectedCourt] = useState<string | null>(null);
+const [customerName, setCustomerName] = useState("");
+const [customerContact, setCustomerContact] = useState("");
+const [bookings, setBookings] = useState<any[]>([]);
+const courts = [
   {
     id: 1,
     name: "Court 1",
@@ -33,9 +32,20 @@ export default function Home() {
   },
   ];
 
+ const availableCourts = courts.filter((court) => {
+  const alreadyBooked = bookings.some(
+    (booking) =>
+      booking.date === date &&
+      booking.time === selectedTimeSlot &&
+      booking.court === court.name
+  );
+
+  return court.available && !alreadyBooked;
+}); 
+
 const handleCheck = () => {
-  if (!date || !startTime || !endTime) {
-    alert("Please select date, start time, and end time.");
+  if (!date || !selectedTimeSlot) {
+    alert("Please select a date and time slot first.");
     return;
   }
 
@@ -43,31 +53,28 @@ const handleCheck = () => {
 
   console.log("Booking check:", {
     date,
-    startTime,
-    endTime,
+    selectedTimeSlot,
   });
 };
 
 const handleConfirmBooking = () => {
-  if (!selectedCourt || !customerName || !customerContact) {
+  if (!date || !selectedTimeSlot || !selectedCourt || !customerName || !customerContact) {
     alert("Please complete all booking details.");
     return;
   }
 
-  console.log("Final Booking:", {
+  const newBooking = {
     date,
-    startTime,
-    endTime,
-    selectedCourt,
-    customerName,
-    customerContact,
-  });
+    time: selectedTimeSlot,
+    court: selectedCourt,
+    name: customerName,
+    contact: customerContact,
+  };
 
-  alert("Booking submitted!");
+  setBookings([...bookings, newBooking]);
 
-  setDate("");
-  setStartTime("");
-  setEndTime("");
+  alert("Booking confirmed!");
+
   setSelectedCourt(null);
   setCustomerName("");
   setCustomerContact("");
@@ -118,29 +125,62 @@ const handleConfirmBooking = () => {
               </div>
 
               <div>
-                <label className="block mb-2 text-sm text-slate-400">
-                  Start Time
+                <label className="block mb-2 text-sm text-slate-300">
+                  Select Time
                 </label>
 
-                <input
-                  type="time"
-                  value={startTime}
-                  onChange={(e) => setStartTime(e.target.value)}
+                <select
+                  value={selectedTimeSlot}
+                  onChange={(e) => setSelectedTimeSlot(e.target.value)}
                   className="w-full p-4 rounded-xl bg-slate-800 border border-slate-700"
-                />
-              </div>
+                  disabled={!date}
+                >
 
-              <div>
-                <label className="block mb-2 text-sm text-slate-400">
-                  End Time
-                </label>
 
-                <input
-                  type="time"
-                  value={endTime}
-                  onChange={(e) => setEndTime(e.target.value)}
-                  className="w-full p-4 rounded-xl bg-slate-800 border border-slate-700"
-                />
+                  <option value="" disabled hidden>
+                    Select a date first
+                  </option>
+
+                  <optgroup label="Early Morning">
+                    <option value="12:00 AM">12:00 AM - 1:00 AM</option>
+                    <option value="1:00 AM">1:00 AM - 2:00 AM</option>
+                    <option value="2:00 AM">2:00 AM - 3:00 AM</option>
+                    <option value="3:00 AM">3:00 AM - 4:00 AM</option>
+                    <option value="4:00 AM">4:00 AM - 5:00 AM</option>
+                    <option value="5:00 AM">5:00 AM - 6:00 AM</option>
+                  </optgroup>
+
+                  <optgroup label="Morning">
+                    <option value="6:00 AM">6:00 AM - 7:00 AM</option>
+                    <option value="7:00 AM">7:00 AM - 8:00 AM</option>
+                    <option value="8:00 AM">8:00 AM - 9:00 AM</option>
+                    <option value="9:00 AM">9:00 AM - 10:00 AM</option>
+                    <option value="10:00 AM">10:00 AM - 11:00 AM</option>
+                    <option value="11:00 AM">11:00 AM - 12:00 AM</option>
+                  </optgroup>
+
+                  <optgroup label="Afternoon">
+                    <option value="12:00 PM">12:00 PM - 1:00 PM</option>
+                    <option value="1:00 PM">1:00 PM - 2:00 PM</option>
+                    <option value="2:00 PM">2:00 PM - 3:00 PM</option>
+                    <option value="3:00 PM">3:00 PM - 4:00 PM</option>
+                    <option value="4:00 PM">4:00 PM - 5:00 PM</option>
+                    <option value="5:00 PM">5:00 PM - 6:00 PM</option>
+                  </optgroup>
+
+                  <optgroup label="Evening">
+                    <option value="6:00 PM">6:00 PM - 7:00 PM</option>
+                    <option value="7:00 PM">7:00 PM - 8:00 PM</option>
+                    <option value="8:00 PM">8:00 PM - 9:00 PM</option>
+                    <option value="9:00 PM">9:00 PM - 10:00 PM</option>
+                  </optgroup>
+
+                  <optgroup label="Late Evening">
+                    <option value="10:00 PM">10:00 PM - 11:00 PM</option>
+                    <option value="11:00 PM">11:00 PM - 12:00 PM</option>
+                  </optgroup>
+
+                </select>
               </div>
 
               <button
@@ -159,10 +199,16 @@ const handleConfirmBooking = () => {
               Available Courts
             </h2>
 
+            {showCourts && availableCourts.length === 0 && (
+              <p className="text-red-400 mt-4">
+                No courts available for this date and time.
+              </p>
+            )}
+
             {showCourts ? (
               <div className="space-y-4">
 
-                {courts.map((court) => (
+                {availableCourts.map((court) => (
 
                   <div
                     key={court.id}
@@ -237,6 +283,27 @@ const handleConfirmBooking = () => {
         </div>  
 
       </section>
+
+  {bookings.length > 0 && (
+    <div className="mt-8 rounded-xl bg-slate-900 border border-slate-700 p-6">
+      <h2 className="text-xl font-bold mb-4">Confirmed Bookings</h2>
+
+      <div className="space-y-3">
+        {bookings.map((booking, index) => (
+          <div
+            key={index}
+            className="rounded-lg bg-slate-800 border border-slate-700 p-4"
+          >
+            <p><strong>Date:</strong> {booking.date}</p>
+            <p><strong>Time:</strong> {booking.time}</p>
+            <p><strong>Court:</strong> {booking.court}</p>
+            <p><strong>Name:</strong> {booking.name}</p>
+            <p><strong>Contact:</strong> {booking.contact}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  )}
 
     </main>
   );
