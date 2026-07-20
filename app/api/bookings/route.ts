@@ -5,99 +5,110 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
 
-    const auth = new google.auth.GoogleAuth({
-      credentials: {
-        client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-        private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
-      },
-      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
-    });
+    const appsScriptUrl =
+      process.env.GOOGLE_APPS_SCRIPT_BOOKING_URL;
 
-    const sheets = google.sheets({ version: "v4", auth });
+    const bookingSecret =
+      process.env.BOOKING_API_SECRET;
 
-    const appendResponse = await sheets.spreadsheets.values.append({
-      spreadsheetId: process.env.GOOGLE_SHEET_ID,
-      range: "Bookings!A3:J",
-      valueInputOption: "USER_ENTERED",
-      insertDataOption: "INSERT_ROWS",
-      requestBody: {
-        values: [
-          [
-            body.bookingId,
-            body.createdAt,
-            body.date,
-            body.startTime,
-            body.endTime,
-            body.court,
-            body.name,
-            body.contact,
-            body.email,
-            body.amount,
-            body.bookingStatus,
-          ],
-        ],
-      },
-    });
-
-    const updatedRange = appendResponse.data.updates?.updatedRange;
-    const rowMatch = updatedRange?.match(/![A-Z]+(\d+):/i);
-    const newRowNumber = rowMatch ? Number(rowMatch[1]) : null;
-
-    if (!newRowNumber) {
-      throw new Error("Could not determine the newly added row.");
+    if (!appsScriptUrl || !bookingSecret) {
+      throw new Error(
+        "Booking API environment variables are missing."
+      );
     }
 
-    const spreadsheet = await sheets.spreadsheets.get({
-    spreadsheetId: process.env.GOOGLE_SHEET_ID,
-    fields: "sheets.properties",
-    });
-
-    const bookingsSheet = spreadsheet.data.sheets?.find(
-      (sheet) => sheet.properties?.title === "Bookings"
-    ); 
-
-    const bookingsSheetId = bookingsSheet?.properties?.sheetId;
-
-    if (bookingsSheetId === undefined || bookingsSheetId === null) {
-      throw new Error('Sheet named "Bookings" was not found.');
-    }
-
-    await sheets.spreadsheets.batchUpdate({
-      spreadsheetId: process.env.GOOGLE_SHEET_ID,
-      requestBody: {
-        requests: [
-          {
-            copyPaste: {
-              source: {
-                sheetId: bookingsSheetId,
-                startRowIndex: 1, // Row 2
-                endRowIndex: 2,
-                startColumnIndex: 9, // Column J
-                endColumnIndex: 10,
-              },
-              destination: {
-                sheetId: bookingsSheetId,
-                startRowIndex: newRowNumber - 1,
-                endRowIndex: newRowNumber,
-                startColumnIndex: 9, // Column J
-                endColumnIndex: 10,
-              },
-              pasteType: "PASTE_DATA_VALIDATION",
-              pasteOrientation: "NORMAL",
-            },
-          },
-        ],
+    const bookingResponse = await fetch(appsScriptUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "text/plain;charset=utf-8",
       },
+      body: JSON.stringify({
+        secret: bookingSecret,
+        bookingId: body.bookingId,
+        createdAt: body.createdAt,
+        date: body.date,
+        startTime: body.startTime,
+        endTime: body.endTime,
+        court: body.court,
+        name: body.name,
+        contact: body.contact,
+        email: body.email,
+        amount: body.amount,
+        bookingStatus: body.bookingStatus,
+      }),
+      cache: "no-store",
+      redirect: "follow",
     });
+
+    const responseText = await bookingResponse.text();
+
+    let bookingResult;
 
     try {
-      const emailResponse = await fetch(
-        process.env.N8N_BOOKING_WEBHOOK_URL!,
+      bookingResult = JSON.parse(responseText);
+    } catch {
+      console.error(
+        "Invalid Apps Script response:",
+        responseText
+      );
+
+      throw new Error(
+        "The booking service returned an invalid response."
+      );
+    }
+
+    if (!bookingResult.success) {
+      if (bookingResult.conflict) {
+        return NextResponse.json(
+          {
+            success: false,
+            conflict: true,
+            conflictingCourts:
+              bookingResult.conflictingCourts || [],
+            message:
+              bookingResult.message ||
+              "The selected schedule was just reserved.",
+          },
+          { status: 409 }
+        );
+      }
+
+      if (bookingResult.busy) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: bookingResult.message,
+          },
+          { status: 503 }
+        );
+      }
+
+      return NextResponse.json(
         {
+          success: false,
+          message:
+            bookingResult.message ||
+            "Failed to save booking.",
+        },
+        { status: 400 }
+      );
+    }
+
+    /*
+     * The booking has already been saved.
+     * Email failure should not cancel the booking.
+     */
+    try {
+      const webhookUrl =
+        process.env.N8N_BOOKING_WEBHOOK_URL;
+
+      if (webhookUrl) {
+        const emailResponse = await fetch(webhookUrl, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "x-webhook-secret": process.env.N8N_WEBHOOK_SECRET!,
+            "x-webhook-secret":
+              process.env.N8N_WEBHOOK_SECRET || "",
           },
           body: JSON.stringify({
             bookingId: body.bookingId,
@@ -110,30 +121,38 @@ export async function POST(request: Request) {
             amount: body.amount,
             bookingStatus: body.bookingStatus,
           }),
-        }
-      );
+        });
 
-      if (!emailResponse.ok) {
-        console.error(
-          "n8n confirmation email failed:",
-          await emailResponse.text()
-        );
+        if (!emailResponse.ok) {
+          console.error(
+            "n8n confirmation email failed:",
+            await emailResponse.text()
+          );
+        }
       }
     } catch (emailError) {
-      console.error("Unable to trigger confirmation email:", emailError);
+      console.error(
+        "Unable to trigger confirmation email:",
+        emailError
+      );
     }
 
-    // Keep the success response after the n8n request
     return NextResponse.json({
       success: true,
       message: "Booking submitted successfully.",
       bookingId: body.bookingId,
     });
-    
   } catch (error) {
-    console.error("Google Sheets Error:", error);
+    console.error("Submit booking error:", error);
+
     return NextResponse.json(
-      { success: false, error: "Failed to save booking" },
+      {
+        success: false,
+        message:
+          error instanceof Error
+            ? error.message
+            : "Failed to save booking.",
+      },
       { status: 500 }
     );
   }

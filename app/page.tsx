@@ -111,6 +111,17 @@ export default function Home() {
     { label: "11 PM - 12 MN", start: "23:00", end: "24:00" },
   ];
 
+  const formatBookingDate = (dateString: string) => {
+    const [year, month, day] = dateString.split("-").map(Number);
+
+    return new Intl.DateTimeFormat("en-US", {
+      timeZone: "Asia/Manila",
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    }).format(new Date(year, month - 1, day));
+  };
+
   const toggleCalendarCourt = (court: string) => {
     setSelectedCalendarCourts((currentCourts) => {
       if (currentCourts.includes(court)) {
@@ -126,7 +137,7 @@ export default function Home() {
       setCalendarError("");
 
       const response = await fetch(
-        `/api/get-calendar?date=${encodeURIComponent(selectedDate)}`,
+        `/api/get-calendar?date=${encodeURIComponent(date)}`,
         {
           cache: "no-store",
         },
@@ -453,10 +464,16 @@ const handleCheck = async () => {
         alert("Please enter a valid Philippine mobile number (09xxxxxxxxx).");
         return;
       }
+
+      if (!customerEmail.trim().toLowerCase().endsWith("@domain.com")) {
+        alert("Please enter a valid email address.");
+        return;
+      }
+
       const isOvernight = timeToHour(endTime) <= timeToHour(startTime);
 
       const newBooking: Booking = {
-        date,
+        date: formatBookingDate(date),
         startTime,
         endTime,
         court: selectedCourts.join(", "),
@@ -492,8 +509,25 @@ const handleCheck = async () => {
         }),
       });
 
-      if (!response.ok) {
-        alert("Failed to save booking.");
+      const responseData = await response.json();
+
+      if (!response.ok || !responseData.success) {
+        if (response.status === 409) {
+          alert(
+            responseData.message ||
+              "This schedule was just reserved by another customer."
+          );
+
+          setShowBookingModal(false);
+          setSelectedCourts([]);
+          setShowCourts(false);
+          return;
+        }
+
+        alert(
+          responseData.message ||
+            "Failed to save booking."
+        );
         return;
       }
 
