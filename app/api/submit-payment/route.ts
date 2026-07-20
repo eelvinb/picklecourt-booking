@@ -166,6 +166,7 @@ export async function POST(request: Request) {
     const startTime = String(matchingRow[3] || "").trim(); // Column D
     const endTime = String(matchingRow[4] || "").trim(); // Column E
     const court = String(matchingRow[5] || "").trim(); // Column F
+    const amount = String(matchingRow[9] || "").trim(); // Column F
 
     const safeBookingId = bookingId.replace(
       /[^a-zA-Z0-9-_]/g,
@@ -188,7 +189,7 @@ export async function POST(request: Request) {
 
     await sheets.spreadsheets.values.update({
       spreadsheetId: process.env.GOOGLE_SHEET_ID,
-      range: `Bookings!J${sheetRowNumber}:M${sheetRowNumber}`,
+      range: `Bookings!K${sheetRowNumber}:N${sheetRowNumber}`,
       valueInputOption: "USER_ENTERED",
       requestBody: {
         values: [
@@ -216,6 +217,7 @@ export async function POST(request: Request) {
             name: customerName,
             email: customerEmail,
             date: bookingDate,
+            amount,
             startTime,
             endTime,
             court,

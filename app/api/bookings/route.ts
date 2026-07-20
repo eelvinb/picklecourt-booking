@@ -32,6 +32,7 @@ export async function POST(request: Request) {
             body.name,
             body.contact,
             body.email,
+            body.amount,
             body.bookingStatus,
           ],
         ],
@@ -106,6 +107,7 @@ export async function POST(request: Request) {
             startTime: body.startTime,
             endTime: body.endTime,
             court: body.court,
+            amount: body.amount,
             bookingStatus: body.bookingStatus,
           }),
         }
@@ -202,6 +204,7 @@ export async function GET(request: Request) {
         name: bookingRow[6] || "",
         contact: bookingRow[7] || "",
         email: bookingRow[8] || "",
+        amount: bookingRow[9] || "",
         bookingStatus: bookingRow[10] || "",
         
       },

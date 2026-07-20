@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
 
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: process.env.GOOGLE_SHEET_ID,
-      range: "Bookings!A3:J",
+      range: "Bookings!A3:K",
     });
 
     const rows = response.data.values ?? [];
@@ -75,7 +75,7 @@ export async function GET(request: NextRequest) {
     const bookings = rows
       .filter((row) => {
         const bookingDate = row[2]?.toString() ?? "";
-        const bookingStatus = row[9]?.toString() ?? "";
+        const bookingStatus = row[10]?.toString() ?? "";
 
         const sameDate =
           normalizeDate(bookingDate) ===
@@ -101,7 +101,7 @@ export async function GET(request: NextRequest) {
         startTime: row[3]?.toString() ?? "",
         endTime: row[4]?.toString() ?? "",
         court: row[5]?.toString() ?? "",
-        bookingStatus: row[9]?.toString() ?? "",
+        bookingStatus: row[10]?.toString() ?? "",
       }));
 
     return NextResponse.json({
